@@ -128,7 +128,8 @@ class Controlador:
 
     def insertar_pedido(self, cpedido, ccliente, fecha_pedido):
         #self.accesoDB.insertar_datos("Pedido", {"Cpedido" : "2", "CCliente" : "2", "Fecha" : "TO_DATE('2021-05-01', 'YYYY-MM-DD')"})
-        self.accesoDB.insertar_datos("Pedido", {"CPedido": str(cpedido), "CCliente": str(ccliente), "Fecha": "TO_DATE('" + fecha_pedido + "', 'YYYY-MM-DD')"})
+        #self.accesoDB.insertar_datos("Pedido", {"CPedido": str(cpedido), "CCliente": str(ccliente), "Fecha": "TO_DATE('" + fecha_pedido + "', 'YYYY-MM-DD')"})
+        self.accesoDB.insertar_datos("Pedido", {"CCliente": str(ccliente), "Fecha": "TO_DATE('" + fecha_pedido + "', 'YYYY-MM-DD')"})
 
     def insertar_detalle_producto(self, cpedido, cproducto, cantidad):
         #Comprobar que el ID del producto existe TODO
@@ -142,7 +143,8 @@ class Controlador:
 
         #Actualizar tabla stock
         self.accesoDB.modificar_datos("Stock", ["Cantidad"], [cantidad_stock - cantidad], f"CProducto = {cproducto}")
-        self.accesoDB.insertar_datos("DetallePedido", {"CPedido": str(cpedido), "CProducto": str(cproducto), "Cantidad": str(cantidad)})
+        #self.accesoDB.insertar_datos("DetallePedido", {"CPedido": str(cpedido), "CProducto": str(cproducto), "Cantidad": str(cantidad)})
+        self.accesoDB.insertar_datos("DetallePedido", {"CProducto": str(cproducto), "Cantidad": str(cantidad)})
         return True
     '''
     def comprobar_id_pedido(self, cpedido):

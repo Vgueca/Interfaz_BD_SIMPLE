@@ -278,7 +278,7 @@ class VentanaMenu:
         #
         # ------------ CÓDIGO DE LA BD ------------------
 
-        VentanaMenu.controlador.insertar_pedido(cpedido=VentanaMenu.current_id_pedido, ccliente=id_cliente, fecha_pedido=self.fecha_pedido)
+        VentanaMenu.controlador.insertar_pedido(ccliente=id_cliente, fecha_pedido=self.fecha_pedido)
 
         #Crear menú para Detalles de Pedido
         # Se destruye la ventana actual
