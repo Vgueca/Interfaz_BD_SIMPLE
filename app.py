@@ -16,7 +16,6 @@ class VentanaMenu:
 
         window_width = 400
         window_height = 225
-
         # Tomamos las dimensiones de la pantalla
         p_width = self.root.winfo_screenwidth()
         p_height = self.root.winfo_screenheight()
@@ -90,14 +89,17 @@ class VentanaMenu:
 
             self.lbl_2=tk.Label(self.root, text="Alta de un nuevo pedido.")
             self.lbl_2.grid(padx=10, pady=10, row=0, column=0, columnspan=2)
-            self.lbl_3=tk.Label(self.root, text="Introduzca el id de cliente requerida")
+            self.lbl_3=tk.Label(self.root, text="Introduzca el id de pedido y id de cliente requeridos")
             self.lbl_3.grid(padx=10, pady=10, row=1, column=0, columnspan=2)
 
+            '''
             self.lbl_p=tk.Label(self.root, text='ID Pedido :',  anchor="e").grid(padx=10, row=2, column=0, sticky=tk.W + tk.E)
             #self.t_id_pedido = tk.StringVar()
             #self.intro_id_pedido=tk.Entry(master=self.root, textvariable=self.t_id_pedido).grid(row=2, column=1, sticky=tk.W)
-            self.lbl_id_pedido=tk.Label(master=self.root, text=str(VentanaMenu.current_id_pedido)).grid(row=2, column=1, sticky=tk.W)
-
+            #self.lbl_id_pedido=tk.Label(master=self.root, text=str(VentanaMenu.current_id_pedido)).grid(row=2, column=1, sticky=tk.W)
+            self.t_id_pedido= tk.StringVar()
+            VentanaMenu.current_id_pedido = tk.Entry(master=self.root, textvariable=self.t_id_pedido).grid(row=3, column=1, sticky=tk.W)
+            '''
             self.lbl_c=tk.Label(self.root, text='ID Cliente :',  anchor="e").grid(padx=10, row=3, column=0, sticky=tk.W + tk.E)
             self.t_id_cliente = tk.StringVar()
             self.intro_id_cliente=tk.Entry(master=self.root, textvariable=self.t_id_cliente).grid(row=3, column=1, sticky=tk.W)
@@ -237,7 +239,39 @@ class VentanaMenu:
             e2_lbl =  tk.Label(v_error, text="Los datos introducidos deben ser números naturales.").pack(expand=True)
             e_btn = ctk.CTkButton(master=v_error, text="Aceptar", command=lambda : v_error.destroy()).pack(expand=True)
             return
-
+        '''
+        try:
+            id_pedido = int(VentanaMenu.current_id_pedido)
+            if id_pedido < 0:
+                raise ValueError
+        except ValueError:
+            v_error = tk.Toplevel()
+            v_error.title("ERROR 1")
+            v_error.geometry(f"400x150+{self.center_x}+{self.center_y}")
+            e1_lbl = tk.Label(v_error, text="ERROR! INPUT INCORRECTO").pack(expand=True)
+            e2_lbl =  tk.Label(v_error, text="Los datos introducidos deben ser números naturales.").pack(expand=True)
+            e_btn = ctk.CTkButton(master=v_error, text="Aceptar", command=lambda : v_error.destroy()).pack(expand=True)
+            return
+        '''
+        
+        # ------------ CÓDIGO DE LA BD ------------------
+        #   
+        # 1. Comprobar que el id_pedido es correcto y no esta repetido en nuestra BD
+        #
+        # ------------ CÓDIGO DE LA BD ------------------
+        '''
+        try:
+            if VentanaMenu.controlador.comprobar_id_pedido(cpedido=id_pedido):
+                raise ValueError
+        except ValueError:
+            v_error = tk.Toplevel()
+            v_error.title("ERROR 1")
+            v_error.geometry(f"400x150+{self.center_x}+{self.center_y}")
+            e1_lbl = tk.Label(v_error, text="ERROR! INPUT INCORRECTO").pack(expand=True)
+            e2_lbl =  tk.Label(v_error, text="El id_pedido introducido ya existe.").pack(expand=True)
+            e_btn = ctk.CTkButton(master=v_error, text="Aceptar", command=lambda : v_error.destroy()).pack(expand=True)
+            return
+        '''
         # ------------ CÓDIGO DE LA BD ------------------
         #   
         # 1. Insertar datos de pedido recogidos arriba
@@ -449,7 +483,7 @@ class VentanaMenu:
             #return (este return es opcional para salir o no del programa según se quiera con este error pero no funciona por el continuar)'''
 
 
-        VentanaMenu.current_id_pedido += 1
+        #VentanaMenu.current_id_pedido += 1   <<< incrementamos el id_pedido manualmente
 
         v_conf = tk.Toplevel()
         v_conf.title("CONFIRMACIÓN DE PEDIDO")

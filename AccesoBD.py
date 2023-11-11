@@ -68,6 +68,10 @@ class AccesoBD:
         self.cursor.execute(sentenciaSQL)
         #self.connection.commit()
     
+    def contar_pedidos(self, nombre_tabla, columnas, condicion):
+        sentenciaSQL = f"SELECT COUNT(*) AS cantidad_pedidos FROM {nombre_tabla} WHERE {condicion}"
+        self.cursor.execute(sentenciaSQL)
+        
     def execute(self, sentenciaSQL):
         self.cursor.execute(sentenciaSQL)
         #self.connection.commit()
@@ -84,7 +88,6 @@ class AccesoBD:
     
     def cerrar_conexion(self):
         self.connection.close()
-
 class Controlador:
     def __init__(self):
         self.accesoDB = AccesoBD(server = 'oracle0.ugr.es', db_name = 'practbd.oracle0.ugr.es', user = 'x2085804', password = 'x2085804')
@@ -93,7 +96,7 @@ class Controlador:
 
     def crear_tablas(self):
         stock_creada = self.accesoDB.crear_tabla("Stock", ["CProducto INT", "Cantidad INT", "PRIMARY KEY (CProducto)"])
-        self.accesoDB.crear_tabla("Pedido", ["CPedido INT", "CCliente INT", "Fecha DATE", "PRIMARY KEY (CPedido)"])
+        self.accesoDB.crear_tabla("Pedido", ["CPedido INT AUTO_INCREMENT", "CCliente INT", "Fecha DATE", "PRIMARY KEY (CPedido)"]) #MODIFICACION
         self.accesoDB.crear_tabla("DetallePedido", ["CPedido INT", "CProducto INT", "Cantidad INT", "FOREIGN KEY (CPedido) REFERENCES Pedido(CPedido)", "FOREIGN KEY (CProducto) REFERENCES Stock(CProducto)", "PRIMARY KEY (CPedido, CProducto)"])
 
         if(stock_creada):
@@ -141,7 +144,16 @@ class Controlador:
         self.accesoDB.modificar_datos("Stock", ["Cantidad"], [cantidad_stock - cantidad], f"CProducto = {cproducto}")
         self.accesoDB.insertar_datos("DetallePedido", {"CPedido": str(cpedido), "CProducto": str(cproducto), "Cantidad": str(cantidad)})
         return True
-
+    '''
+    def comprobar_id_pedido(self, cpedido):
+        
+        #Buscamos el codigo id_pedido en la table Pedido. Devolviendo si hay pedidos con ese id o no.
+        #TODO comprobar con COPILOT si [0][0] es exactamente lo que queremos obtener para saber si ya hay pedidos con ese ID
+        cantidad_id_pedido = self.accesoDB.contar_pedidos("Pedido", ["CPedido"], f"CPedido = {cpedido}")[0][0]
+        if(cantidad_id_pedido > 0):
+            return True
+        return False
+    '''   
     def eliminar_detalles_producto(self, cpedido):
         self.accesoDB.borrar_datos("DetallePedido", f"CPedido = {cpedido}")
 
