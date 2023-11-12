@@ -5,13 +5,23 @@ from datetime import datetime
 
 from AccesoBD import *
 
+class TipoVentana(Enum):
+    MENU_PRINCIPAL = 0
+    TABLAS_INICIADAS = 1
+    NUEVO_PEDIDO = 2
+    TABLAS_CARGADAS = 3
+    OPCIONES_PEDIDO = 4
+    AÑADIR_DETALLES = 5
+
 class VentanaMenu:
-    current_id_pedido = 0
     ya_iniciado = False
     controlador = None
+    current_id_pedido = -1
+    current_tabla_stock = []
+    current_tabla_pedido = []
+    current_tabla_detalle = []
 
-    #def __init__(self, num=0, n_pedido=-1):
-    def __init__(self, num=0):
+    def __init__(self, tipo_ventana = TipoVentana.MENU_PRINCIPAL):
         self.root = tk.Tk()
 
         window_width = 400
@@ -28,381 +38,340 @@ class VentanaMenu:
         # Ajustamos la posición de la ventana al centro de la pantalla
         self.root.geometry(f'{window_width}x{window_height}+{self.center_x}+{self.center_y}')
 
-        # Definimos un entero para los ids de los pedidos, aunque luego deberá ser un natural
-        #VentanaMenu.current_id_pedido = n_pedido
-        #VentanaMenu.current_id_pedido = 0
+        match tipo_ventana:
+            case TipoVentana.MENU_PRINCIPAL:
+                self.root.title("MENÚ:")
 
-        # Definimos un entero para el id de producto y otro para la cantidad, aunque luego deberán ser naturales
-        self.current_id_producto= -1
-        self.current_cantidad = -1
+                # Creamos los botones, su texto y les asignamos una función
+                self.btn1 = ctk.CTkButton(master=self.root, text="Iniciar Tablas", command=self.v_iniciar_tablas).pack(expand=True)
+
+                self.btn2 = ctk.CTkButton(master=self.root, text="Nuevo Pedido", command=self.v_nuevo_pedido).pack(expand=True)
+
+                self.btn3 = ctk.CTkButton(master=self.root, text="Mostrar Tablas", command=self.v_mostrar_tablas).pack(expand=True)
+
+                self.btn4 = ctk.CTkButton(master=self.root, text="Salir", command=self.salir).pack(expand=True)
+
+
+                # ------------ CÓDIGO DE LA BD ------------------
+
+                #   Iniciamos conexión con la BD 
+
+                # solo se crea el VentanaMenu.controlador una vez (solo se conecta una vez a la base de datos)
+                if not VentanaMenu.ya_iniciado:
+                    try:
+                        VentanaMenu.controlador = Controlador() # Instanciamos el VentanaMenu.controlador. Al hacerlo se llama al constructor que inicia la conexión con la BD y crea las tablas si no existen
+                        VentanaMenu.ya_iniciado = True
+                    except pyodbc.Error as error:
+                        self.mostrar_ventana_error(TipoError.BD_ERROR, str(error.args[1]))
+                        return
+
+                # ------------ CÓDIGO DE LA BD ------------------
+
+            case TipoVentana.TABLAS_INICIADAS:
+                self.root.title("Opción 1: INICIAR TABLAS")
+                self.lbl_1=tk.Label(self.root, text="Tablas iniciadas!").pack(pady=10)
+                self.btn_continuar=tk.Button(master=self.root, text='Continuar', command=self.continuar_principal, bg="#00B2EE").pack(side=tk.BOTTOM, pady=20)
+
+            case TipoVentana.NUEVO_PEDIDO:
+                self.root.columnconfigure(0, weight=1)
+                self.root.columnconfigure(1, weight=1)
+                self.root.rowconfigure(5, weight=1)
+
+                self.root.title("Opción 2: NUEVO PEDIDO")
+
+                self.lbl_2=tk.Label(self.root, text="Alta de un nuevo pedido.")
+                self.lbl_2.grid(padx=10, pady=10, row=0, column=0, columnspan=2)
+                self.lbl_3=tk.Label(self.root, text="Introduzca el id de cliente requerida")
+                self.lbl_3.grid(padx=10, pady=10, row=1, column=0, columnspan=2)
+
+                # Consultamos la base de datos para saber el ID que tendría el pedido siguiente
+                VentanaMenu.current_id_pedido = VentanaMenu.controlador.consultar_ultimo_id_pedido() + 1
+
+                self.lbl_p=tk.Label(self.root, text='ID Pedido : ' + str(VentanaMenu.current_id_pedido),  anchor="e").grid(padx=10, row=2, column=0, columnspan=2)
+                self.lbl_c=tk.Label(self.root, text='ID Cliente :',  anchor="e").grid(padx=10, row=3, column=0, sticky=tk.W + tk.E)
+                self.t_id_cliente = tk.StringVar()
+                self.intro_id_cliente=tk.Entry(master=self.root, textvariable=self.t_id_cliente).grid(row=3, column=1, sticky=tk.W)
+
+                # fecha actual
+                fecha = datetime.now()
+                #formato fecha
+                formato = '%Y-%m-%d'
+                #pasamos la fecha a string
+                self.fecha_pedido = fecha.strftime(formato)
+
+                self.lbl_fecha=tk.Label(self.root, text='Fecha:  ' + self.fecha_pedido)
+                self.lbl_fecha.grid(padx=10, pady=10, row=4, column=0, columnspan=2)
         
-        if num==0:
-            self.root.title("MENÚ:")
+                self.btn_pedido=tk.Button(master=self.root, text='Añadir Pedido', command=self.procesar_datos_pedido, bg="#00B2EE")
+                self.btn_pedido.grid(padx=10, pady=10, row=5, column=0, columnspan=2)
 
-            # Creamos los botones, su texto y les asignamos una función
-            self.btn1 = ctk.CTkButton(master=self.root, text="Iniciar Tablas", command=self.v_iniciar_tablas).pack(expand=True)
+            case TipoVentana.TABLAS_CARGADAS:
+                self.root.title("Opción 3: CONTENIDO DE LA BASE DE DATOS")
+                lbl_3=tk.Label(self.root, text="Tablas de datos cargadas!").pack(pady=10)
+                self.btn_continuar=tk.Button(master=self.root, text='Continuar', command=self.continuar_principal, bg="#00B2EE").pack(side=tk.BOTTOM, pady=20)
 
-            self.btn2 = ctk.CTkButton(master=self.root, text="Nuevo Pedido", command=self.v_nuevo_pedido).pack(expand=True)
+                ventana_stock = tk.Toplevel()
+                ventana_stock.title("Tabla Stock")
+                if len(VentanaMenu.current_tabla_stock) > 0:
+                    ancho_tabla_stock = len(VentanaMenu.current_tabla_stock[0])
+                    alto_tabla_stock = len(VentanaMenu.current_tabla_stock)
 
-            self.btn3 = ctk.CTkButton(master=self.root, text="Mostrar Tablas", command=self.v_mostar_tablas).pack(expand=True)
+                    #Mostrar primero los nombres de las columnas
+                    columnas_stock = ["CProducto", "Cantidad"]
+                    for i in range(len(columnas_stock)):
+                        entry_text = tk.StringVar()
+                        entry = tk.Entry(ventana_stock, width=10, state="readonly", textvariable=entry_text, justify = tk.CENTER, font = ("TkDefaultFont", 10, "bold"))
+                        entry.grid(row=0, column=i)
+                        entry_text.set(columnas_stock[i])
 
-            self.btn4 = ctk.CTkButton(master=self.root, text="Salir", command=self.salir).pack(expand=True)
+                    for i in range(alto_tabla_stock):
+                        for j in range(ancho_tabla_stock):
+                            entry_text = tk.StringVar()
+                            entry = tk.Entry(ventana_stock, width=10, state="readonly", textvariable=entry_text, justify = tk.CENTER, font = ("TkDefaultFont", 10))
+                            entry.grid(row=i+1, column=j)
+                            entry_text.set(VentanaMenu.current_tabla_stock[i][j])
 
-            # ------------ CÓDIGO DE LA BD ------------------
-            #
-            #   Iniciamos conexión con la BD 
-            #   **Creamos tablas en caso de que las tablas no estén creadas (primera conexión a la BD)
-            #
-            # ------------ CÓDIGO DE LA BD ------------------
-            
-            # solo se crea el VentanaMenu.controlador una vez (solo se conecta una vez a la base de datos)
-            if not VentanaMenu.ya_iniciado:
-                VentanaMenu.controlador = Controlador() # Instanciamos el VentanaMenu.controlador. Al hacerlo se llama al constructor que inicia la conexión con la BD y crea las tablas si no existen
-                VentanaMenu.ya_iniciado = True
+                for fila in VentanaMenu.current_tabla_pedido:
+                    fila[2] = fila[2].strftime("%d/%m/%Y")
 
-        elif num==1:
-            self.root.title("Opción 1: INICIAR TABLAS")
-            self.lbl_1=tk.Label(self.root, text="Tablas iniciadas!").pack(pady=10)
+                ventana_pedido = tk.Toplevel()
+                ventana_pedido.title("Tabla Pedido")
+                if len(VentanaMenu.current_tabla_pedido) > 0:
+                    ancho_tabla_pedido = len(VentanaMenu.current_tabla_pedido[0])
+                    alto_tabla_pedido = len(VentanaMenu.current_tabla_pedido)
 
-            # ------------ CÓDIGO DE LA BD ------------------
-            #   
-            # 1. Borrado de la BD
-            # 2. Creación Tablas nuevas
-            # 3. Inserción de 10 tuplas predefinidas en Stock:
-            #           3.1: Definir tuplas: Crear las tuplas aleatorias con un for, haciendo que los ids sean num. del 0-9 y las cantidades naturales random.
-            #           3.2: Insertarlas
-            # 4. Mostrar contenido de las Tablas (SELECT o llamar a v_mostrar_tablas)
-            #
-            # ------------ CÓDIGO DE LA BD ------------------
+                    #Mostrar primero los nombres de las columnas
+                    columnas_pedido = ["CPedido", "CCliente", "Fecha"]
+                    for i in range(len(columnas_pedido)):
+                        entry_text = tk.StringVar()
+                        entry = tk.Entry(ventana_pedido, width=10, state="readonly", textvariable=entry_text, justify = tk.CENTER, font = ("TkDefaultFont", 10, "bold"))
+                        entry.grid(row=0, column=i)
+                        entry_text.set(columnas_pedido[i])
 
-            VentanaMenu.controlador.reiniciar_sistema() # Borramos las tablas y las volvemos a crear
-            
-            self.btn_continuar=tk.Button(master=self.root, text='Continuar', command=self.continuar_principal, bg="#00B2EE").pack(side=tk.BOTTOM, pady=20)
+                    for i in range(alto_tabla_pedido):
+                        for j in range(ancho_tabla_pedido):
+                            entry_text = tk.StringVar()
+                            entry = tk.Entry(ventana_pedido, width=10, state="readonly", textvariable=entry_text, justify = tk.CENTER, font = ("TkDefaultFont", 10))
+                            entry.grid(row=i+1, column=j)
+                            entry_text.set(VentanaMenu.current_tabla_pedido[i][j])
 
-            #self.continuar_principal()
+                ventana_detalle_pedido = tk.Toplevel()
+                ventana_detalle_pedido.title("Tabla Detalle-Pedido")
+                if len(VentanaMenu.current_tabla_detalle) > 0:
+                    ancho_tabla_detalle_pedido = len(VentanaMenu.current_tabla_detalle[0])
+                    alto_tabla_detalle_pedido = len(VentanaMenu.current_tabla_detalle)
 
-        elif num==2:
-            self.root.columnconfigure(0, weight=1)
-            self.root.columnconfigure(1, weight=1)
-            self.root.rowconfigure(5, weight=1)
+                    #Mostrar primero los nombres de las columnas
+                    columnas_detalle_pedido = ["CPedido", "CProducto", "Cantidad"]
+                    for i in range(len(columnas_detalle_pedido)):
+                        entry_text = tk.StringVar()
+                        entry = tk.Entry(ventana_detalle_pedido, width=10, state="readonly", textvariable=entry_text, justify = tk.CENTER, font = ("TkDefaultFont", 10, "bold"))
+                        entry.grid(row=0, column=i)
+                        entry_text.set(columnas_detalle_pedido[i])
 
-            self.root.title("Opción 2: NUEVO PEDIDO")
+                    for i in range(alto_tabla_detalle_pedido):
+                        for j in range(ancho_tabla_detalle_pedido):
+                            entry_text = tk.StringVar()
+                            entry = tk.Entry(ventana_detalle_pedido, width=10, state="readonly", textvariable=entry_text, justify = tk.CENTER, font = ("TkDefaultFont", 10))
+                            entry.grid(row=i+1, column=j)
+                            entry_text.set(VentanaMenu.current_tabla_detalle[i][j])            
+            case TipoVentana.OPCIONES_PEDIDO:
+                self.root.title("OPCIONES DEL PEDIDO: " + str(VentanaMenu.current_id_pedido))
 
-            self.lbl_2=tk.Label(self.root, text="Alta de un nuevo pedido.")
-            self.lbl_2.grid(padx=10, pady=10, row=0, column=0, columnspan=2)
-            self.lbl_3=tk.Label(self.root, text="Introduzca el id de cliente requerida")
-            self.lbl_3.grid(padx=10, pady=10, row=1, column=0, columnspan=2)
+                # Creamos los botones para las distintas opciones
+                self.btn1 = tk.Button(master=self.root, text="1. Añadir detalles del pedido", command=self.v_añadir_detalles, bg="#00B2EE").pack(expand=True)
 
-            # TODO MOSTRAR ID_PEDIDO AL USUARIO?
-            '''self.lbl_p=tk.Label(self.root, text='ID Pedido :',  anchor="e").grid(padx=10, row=2, column=0, sticky=tk.W + tk.E)
-            #self.t_id_pedido = tk.StringVar()
-            #self.intro_id_pedido=tk.Entry(master=self.root, textvariable=self.t_id_pedido).grid(row=2, column=1, sticky=tk.W)
-            self.lbl_id_pedido=tk.Label(master=self.root, text=str(VentanaMenu.current_id_pedido)).grid(row=2, column=1, sticky=tk.W)'''
+                self.btn2 = tk.Button(master=self.root, text="2. Eliminar todos los detalles del pedido", command=self.eliminar_detalles, bg="#00B2EE").pack(expand=True)
 
-            self.lbl_c=tk.Label(self.root, text='ID Cliente :',  anchor="e").grid(padx=10, row=3, column=0, sticky=tk.W + tk.E)
-            self.t_id_cliente = tk.StringVar()
-            self.intro_id_cliente=tk.Entry(master=self.root, textvariable=self.t_id_cliente).grid(row=3, column=1, sticky=tk.W)
+                self.btn3 = tk.Button(master=self.root, text="3. Cancelar pedido", command=self.cancelar_pedido, bg="#00B2EE").pack(expand=True)
 
-            # fecha actual
-            fecha = datetime.now()
-            #formato fehca
-            formato = '%Y-%m-%d'
-            #pasamos la fecha a string
-            self.fecha_pedido = fecha.strftime(formato)
+                self.btn4 = tk.Button(master=self.root, text="4. Finalizar pedido", command=self.finalizar_pedido, bg="#00B2EE").pack(expand=True)
 
-            self.lbl_fecha=tk.Label(self.root, text='Fecha:  ' + self.fecha_pedido)
-            self.lbl_fecha.grid(padx=10, pady=10, row=4, column=0, columnspan=2)
-    
-            self.btn_pedido=tk.Button(master=self.root, text='Añadir Pedido', command=self.procesar_datos_pedido, bg="#00B2EE")
-            self.btn_pedido.grid(padx=10, pady=10, row=5, column=0, columnspan=2)
+            case TipoVentana.AÑADIR_DETALLES:
+                self.root.columnconfigure(0, weight=1)
+                self.root.columnconfigure(1, weight=1)
+                self.root.rowconfigure(5, weight=1)
 
-        elif num==3:
-            self.root.title("Opción 3: MOSTRAR TABLAS")
-            lbl_3=tk.Label(self.root, text="Mostrando contenido de la BD...").pack(pady=10)
+                self.root.title("AÑADIR DETALLES DEL PEDIDO: " + str(VentanaMenu.current_id_pedido))
 
-            # ------------ CÓDIGO DE LA BD ------------------
-            #   
-            # 1. Mostrar datos de la BD
-            #
-            # ------------ CÓDIGO DE LA BD ------------------
-            tabla_stock, tabla_pedido, tabla_detalle_pedido = VentanaMenu.controlador.leer_tablas()
+                self.lbl_2=tk.Label(self.root, text="Introduzca los detalles del pedido.")
+                self.lbl_2.grid(padx=10, pady=10, row=0, column=0, columnspan=2)
+                self.lbl_3=tk.Label(self.root, text="Introduzca el id del producto y la cantidad requerida")
+                self.lbl_3.grid(padx=10, pady=10, row=1, column=0, columnspan=2)
 
-            # Mostramos el contenido de las tablas
-            ancho_celda, alto_celda = 100, 50
+                self.lbl_prod=tk.Label(self.root, text='ID Producto :',  anchor="e").grid(padx=10, row=2, column=0, sticky=tk.W + tk.E)
+                self.t_id_producto = tk.StringVar()
+                self.intro_id_producto=tk.Entry(master=self.root, textvariable=self.t_id_producto).grid(row=2, column=1, sticky=tk.W)
 
-            ventana_stock = tk.Toplevel()
-            ventana_stock.title("Tabla Stock")
-            if len(tabla_stock) > 0:
-                ancho_tabla_stock = len(tabla_stock[0])
-                alto_tabla_stock = len(tabla_stock)
-                ventana_stock.geometry(f"{ancho_tabla_stock*ancho_celda}x{alto_tabla_stock*alto_celda}+{self.center_x}+{self.center_y}")
-                for i in range(alto_tabla_stock):
-                    for j in range(ancho_tabla_stock):
-                        tk.Label(ventana_stock, text=tabla_stock[i][j]).grid(row=i, column=j)
+                self.lbl_cant=tk.Label(self.root, text='Cantidad :',  anchor="e").grid(padx=10, row=3, column=0, sticky=tk.W + tk.E)
+                self.t_cantidad = tk.StringVar()
+                self.intro_cant=tk.Entry(master=self.root, textvariable=self.t_cantidad).grid(row=3, column=1, sticky=tk.W)
 
-            ventana_pedido = tk.Toplevel()
-            ventana_pedido.title("Tabla Pedido")
-            if len(tabla_pedido) > 0:
-                ancho_tabla_pedido = len(tabla_pedido[0])
-                alto_tabla_pedido = len(tabla_pedido)
-                ventana_pedido.geometry(f"{ancho_tabla_pedido*ancho_celda}x{alto_tabla_pedido*alto_celda}+{self.center_x}+{self.center_y}")
-                for i in range(alto_tabla_pedido):
-                    for j in range(ancho_tabla_pedido):
-                        tk.Label(ventana_pedido, text=tabla_pedido[i][j]).grid(row=i, column=j)
-
-            ventana_detalle_pedido = tk.Toplevel()
-            ventana_detalle_pedido.title("Tabla Detalle-Pedido")
-            if len(tabla_detalle_pedido) > 0:
-                ancho_tabla_detalle_pedido = len(tabla_detalle_pedido[0])
-                alto_tabla_detalle_pedido = len(tabla_detalle_pedido)
-                ventana_detalle_pedido.geometry(f"{ancho_tabla_detalle_pedido*ancho_celda}x{alto_tabla_detalle_pedido*alto_celda}+{self.center_x}+{self.center_y}")
-                for i in range(alto_tabla_detalle_pedido):
-                    for j in range(ancho_tabla_detalle_pedido):
-                        tk.Label(ventana_detalle_pedido, text=tabla_detalle_pedido[i][j]).grid(row=i, column=j)
-
-            self.btn_continuar=tk.Button(master=self.root, text='Continuar', command=self.continuar_principal, bg="#00B2EE").pack(side=tk.BOTTOM, pady=20)
-        
-        elif num==4:
-            self.root.title("OPCIONES DEL PEDIDO: " + str(VentanaMenu.current_id_pedido))
-
-            # Creamos los botones para las distintas opciones
-            self.btn1 = tk.Button(master=self.root, text="1. Añadir detalles del pedido", command=self.añadir_detalles, bg="#00B2EE").pack(expand=True)
-
-            self.btn2 = tk.Button(master=self.root, text="2. Eliminar todos los detalles del pedido", command=self.eliminar_detalles, bg="#00B2EE").pack(expand=True)
-
-            self.btn3 = tk.Button(master=self.root, text="3. Cancelar pedido", command=self.cancelar_pedido, bg="#00B2EE").pack(expand=True)
-
-            self.btn4 = tk.Button(master=self.root, text="4. Finalizar pedido", command=self.finalizar_pedido, bg="#00B2EE").pack(expand=True)
-
-        elif num==5:
-            self.root.columnconfigure(0, weight=1)
-            self.root.columnconfigure(1, weight=1)
-            self.root.rowconfigure(5, weight=1)
-
-            self.root.title("AÑADIR DETALLES DEL PEDIDO: " + str(VentanaMenu.current_id_pedido))
-
-            self.lbl_2=tk.Label(self.root, text="Introduzca los detalles del pedido.")
-            self.lbl_2.grid(padx=10, pady=10, row=0, column=0, columnspan=2)
-            self.lbl_3=tk.Label(self.root, text="Introduzca el id del producto y la cantidad requerida")
-            self.lbl_3.grid(padx=10, pady=10, row=1, column=0, columnspan=2)
-
-            self.lbl_prod=tk.Label(self.root, text='ID Producto :',  anchor="e").grid(padx=10, row=2, column=0, sticky=tk.W + tk.E)
-            self.t_id_producto = tk.StringVar()
-            self.intro_id_producto=tk.Entry(master=self.root, textvariable=self.t_id_producto).grid(row=2, column=1, sticky=tk.W)
-
-            self.lbl_cant=tk.Label(self.root, text='Cantidad :',  anchor="e").grid(padx=10, row=3, column=0, sticky=tk.W + tk.E)
-            self.t_cantidad = tk.StringVar()
-            self.intro_cant=tk.Entry(master=self.root, textvariable=self.t_cantidad).grid(row=3, column=1, sticky=tk.W)
-
-            self.btn_pedido=tk.Button(master=self.root, text='Aceptar', command=self.comprobar_stock, bg="#00B2EE")
-            self.btn_pedido.grid(padx=10, pady=10, row=5, column=0, columnspan=2)
-            
-        '''elif num==5:
-            self.root.title("SALIR:")
-        else:
-            print("Error al crear una ventana auxiliar de una opción no registrada..")'''
+                self.btn_pedido=tk.Button(master=self.root, text='Aceptar', command=self.insertar_detalles, bg="#00B2EE")
+                self.btn_pedido.grid(padx=10, pady=10, row=5, column=0, columnspan=2)
 
         self.root.mainloop()
 
     def continuar_principal(self):
         # Se destruye la ventana actual
         self.root.destroy()
-        # Se instancia una ventana del menú principal
-        back_principal = VentanaMenu(num=0)
 
-    def continuar_v4(self):
+        # Se instancia una ventana del menú principal
+        VentanaMenu()
+
+    def continuar_opciones_pedido(self):
         # Se destruye la ventana actual
         self.root.destroy()
-        # Se instancia una ventana del menú principal
-        back_principal = VentanaMenu(num=4)
+
+        # Se instancia una ventana del menú de opciones del pedido
+        VentanaMenu(tipo_ventana = TipoVentana.OPCIONES_PEDIDO)
     
     def v_iniciar_tablas(self):
+
+        # ------------ CÓDIGO DE LA BD ------------------
+                
+        # 1. Borrado de la BD
+        # 2. Creación Tablas nuevas
+        # 3. Inserción de 10 tuplas predefinidas en Stock:
+        #     3.1: Definir tuplas.
+        #     3.2: Insertarlas
+
+        try:
+            VentanaMenu.controlador.reiniciar_sistema() # Borramos las tablas y las volvemos a crear
+        except pyodbc.Error as error:
+            self.mostrar_ventana_error(TipoError.BD_ERROR, str(error.args[1]))
+            return
+
+        # ------------ CÓDIGO DE LA BD ------------------
+        
+
         # Se destruye la ventana del menú principal
         self.root.destroy()
 
-        # Se instancia una ventana de la función correspondiente
-        ventana_aux = VentanaMenu(num=1)        
+        # Se instancia una ventana que indica que las tablas se han creado
+        VentanaMenu(tipo_ventana = TipoVentana.TABLAS_INICIADAS)
         
     def procesar_datos_pedido(self):
         # Recoger las variables necesarias
         try:
             id_cliente = int(self.t_id_cliente.get())
-            #id_pedido = int(self.t_id_pedido.get())
             if id_cliente < 0:
                 raise ValueError
         except ValueError:
-            v_error = tk.Toplevel()
-            v_error.title("ERROR 1")
-            v_error.geometry(f"400x150+{self.center_x}+{self.center_y}")
-            e1_lbl = tk.Label(v_error, text="ERROR! INPUT INCORRECTO").pack(expand=True)
-            e2_lbl =  tk.Label(v_error, text="Los datos introducidos deben ser números naturales.").pack(expand=True)
-            e_btn = ctk.CTkButton(master=v_error, text="Aceptar", command=lambda : v_error.destroy()).pack(expand=True)
+            self.mostrar_ventana_error(TipoError.ID_CLIENTE_MAL_INTRODUCIDO)
             return
+        
 
         # ------------ CÓDIGO DE LA BD ------------------
-        #   
+          
         # 1. Insertar datos de pedido recogidos arriba
-        #
+        
+        try:
+            VentanaMenu.controlador.insertar_pedido(ccliente=id_cliente, fecha_pedido=self.fecha_pedido)
+        except pyodbc.Error as error:
+            self.mostrar_ventana_error(TipoError.BD_ERROR, str(error.args[1]))
+            return
+        
         # ------------ CÓDIGO DE LA BD ------------------
 
-        #VentanaMenu.controlador.insertar_pedido(cpedido=VentanaMenu.current_id_pedido, ccliente=id_cliente, fecha_pedido=self.fecha_pedido)
-        VentanaMenu.controlador.insertar_pedido(ccliente=id_cliente, fecha_pedido=self.fecha_pedido)
 
-        #Crear menú para Detalles de Pedido
+        # Crear menú para Detalles de Pedido
+
         # Se destruye la ventana actual
         self.root.destroy()
         
-        # Se instancia una ventana para los detalles del pedido
-        ventana_detalles = VentanaMenu(num=4)  
+        # Se instancia una ventana del menú de opciones del pedido
+        VentanaMenu(tipo_ventana = TipoVentana.OPCIONES_PEDIDO)
         
     def v_nuevo_pedido(self):
         # Se destruye la ventana del menú principal
         self.root.destroy()
-        # Se instancia una ventana de la función correspondiente
-        ventana_aux = VentanaMenu(num=2)
-    
-    def añadir_detalles(self):
-        #print("AÑADIR DETALLES")
 
+        # Se instancia una ventana del menú de creación de un nuevo pedido
+        VentanaMenu(tipo_ventana = TipoVentana.NUEVO_PEDIDO)
+    
+    def v_añadir_detalles(self):
         # Destruimos la ventana actual
         self.root.destroy()
-        # Se instancia una ventana auxiliar
-        ventana_detalles = VentanaMenu(num=5)
 
-    def comprobar_stock(self):
+        # Se instancia una ventana del menú de añadir detalles del pedido
+        VentanaMenu(tipo_ventana = TipoVentana.AÑADIR_DETALLES)
+
+    def insertar_detalles(self):
         # Recoger las variables necesarias
         try:
             id_producto = int(self.t_id_producto.get())
             cantidad = int(self.t_cantidad.get())
-            if (id_producto<0 | cantidad<0):
+            print(id_producto, " ", cantidad)
+            if id_producto < 0 or cantidad < 0:
                 raise ValueError
+            if id_producto > 9:
+                raise CustomError(TipoError.ID_PRODUCTO_NO_EXISTE)
         except ValueError:
-            v_error_1 = tk.Toplevel()
-            v_error_1.title("ERROR 1")
-            v_error_1.geometry(f"400x150+{self.center_x}+{self.center_y}")
-            e1_lbl = tk.Label(v_error_1, text="ERROR! INPUT INCORRECTO").pack(expand=True)
-            e2_lbl =  tk.Label(v_error_1, text="Los datos introducidos deben ser números naturales.").pack(expand=True)
-            e_btn = ctk.CTkButton(master=v_error_1, text="Aceptar", command=lambda : v_error_1.destroy()).pack(expand=True)
+            self.mostrar_ventana_error(TipoError.NUMERO_MAL_INTRODUCIDO)
+            return
+        except CustomError as custom_error:
+            self.mostrar_ventana_error(custom_error.tipo_error, custom_error.string_error)
+            return
+
+        # ------------ CÓDIGO DE LA BD ------------------
+         
+        # 1. Insertar detalles del pedido recogidos arriba
+        
+        try:
+            insertado = VentanaMenu.controlador.insertar_detalle_pedido(cproducto=id_producto, cantidad=cantidad)
+        except CustomError as custom_error:
+            self.mostrar_ventana_error(custom_error.tipo_error, custom_error.string_error)
+            return
+        except pyodbc.Error as error:
+            self.mostrar_ventana_error(TipoError.BD_ERROR, str(error.args[1]))
             return
         
-        #if existe_producto(id=id_producto):
-        if True:
-            #if hay_stock(id=id_producto, cant=cantidad):
-            if True:
-                self.current_id_producto = id_producto
-                self.current_cantidad = cantidad
-                # LLAMAR A FUNCIÓN Nº 3 DE CÓDIGO DE LA BD de esta sección -> actualizar_stock(id=self.current_id_producto, cant=self.current_cantidad)
-                v_conf = tk.Toplevel()
-                v_conf.title("CONFIRMACIÓN DE DETALLES AÑADIDOS")
-                v_conf.geometry(f"400x150+{self.center_x}+{self.center_y}")
-                c1_lbl = tk.Label(v_conf, text="Detalles del pedido AÑADIDOS con éxito").pack(expand=True)
-                c_btn = ctk.CTkButton(master=v_conf, text="Aceptar", command=self.continuar_v4).pack(expand=True)
-            else:
-                v_error_3 = tk.Toplevel()
-                v_error_3.title("ERROR 3")
-                v_error_3.geometry(f"400x150+{self.center_x}+{self.center_y}")
-                e1_lbl = tk.Label(v_error_3, text="ERROR! STOCK INSUFICIENTE").pack(expand=True)
-                e2_lbl =  tk.Label(v_error_3, text="No hay stock suficiente del producto introducido.").pack(expand=True)
-                e3_lbl =  tk.Label(v_error_3, text="Pruebe con otra cantidad.").pack(expand=True)
-                e_btn = ctk.CTkButton(master=v_error_3, text="Aceptar", command=lambda : v_error_3.destroy()).pack(expand=True)
-                return
-        else:
-            v_error_2 = tk.Toplevel()
-            v_error_2.title("ERROR 2")
-            v_error_2.geometry(f"400x150+{self.center_x}+{self.center_y}")
-            e1_lbl = tk.Label(v_error_2, text="ERROR! PRODUCTO INEXISTENTE").pack(expand=True)
-            e2_lbl =  tk.Label(v_error_2, text="El ID de producto introducido no está en la BD.").pack(expand=True)
-            e3_lbl =  tk.Label(v_error_2, text="Pruebe con otro ID.").pack(expand=True)
-            e_btn = ctk.CTkButton(master=v_error_2, text="Aceptar", command=lambda : v_error_2.destroy()).pack(expand=True)
-            return
-
         # ------------ CÓDIGO DE LA BD ------------------
-        #   
-        # 1. Crear funcion que compruebe si existe el producto introducido y devolver TRUE O FALSE -> def existe_producto(self, id):
-        # 2. Crear funcion que compruebe si hay stock del producto introducido para la cantidad requerida y devolver TRUE O FALSE -> def hay_stock(self, id, cant):
-        # 3. Crear una función que actualice el stock sin hacer el cambio permanente (NO COMMIT) y mostrarlo (SELECT)
-        #   3.1 Hacer INSERT en detalle pedido tras intentar editar la tupla por si se hacen dos Añadir detalles seguidos e identicos
-        #
-        # ------------ CÓDIGO DE LA BD ------------------
-
-        return VentanaMenu.controlador.insertar_detalle_producto(cproducto=self.current_id_producto, cantidad=self.current_cantidad)
+        
+        v_conf = tk.Toplevel()
+        v_conf.title("CONFIRMACIÓN DE DETALLES AÑADIDOS")
+        v_conf.geometry(f"400x150+{self.center_x}+{self.center_y}")
+        c1_lbl = tk.Label(v_conf, text="Detalles del pedido AÑADIDOS con éxito").pack(expand=True)
+        c_btn = ctk.CTkButton(master=v_conf, text="Aceptar", command=self.continuar_opciones_pedido).pack(expand=True)
 
     def eliminar_detalles(self):
-        #print("ELIMINAR DETALLES")
 
-        '''# LLAMAR A FUNCIÓN Nº 1 DE CÓDIGO DE LA BD de esta sección -> deshacer_detalles(id_pedido=VentanaMenu.current_id_pedido, id_prod=self.current_id_producto)
-        #if deshacer_detalles(id_pedido=VentanaMenu.current_id_pedido, id_prod=self.current_id_producto):
-        if True:
-            v_conf_1 = tk.Toplevel()
-            v_conf_1.title("CONFIRMACIÓN DE ELIMINACIÓN")
-            v_conf_1.geometry(f"400x150+{self.center_x}+{self.center_y}")
-            c1_lbl = tk.Label(v_conf_1, text="Detalles del pedido eliminados con éxito").pack(expand=True)
-            c_btn = ctk.CTkButton(master=v_conf_1, text="Aceptar", command=self.continuar_v4).pack(expand=True)
-
-        else:
-            v_error_4 = tk.Toplevel()
-            v_error_4.title("ERROR 4")
-            v_error_4.geometry(f"400x150+{self.center_x}+{self.center_y}")
-            e1_lbl = tk.Label(v_error_4, text="ERROR! BD Error").pack(expand=True)
-            e2_lbl =  tk.Label(v_error_4, text="Algo no ha ido como debía..").pack(expand=True)
-            e3_lbl =  tk.Label(v_error_4, text="La BD devuelve error.").pack(expand=True)
-            e_btn = ctk.CTkButton(master=v_error_4, text="Aceptar", command=self.continuar_v4).pack(expand=True)
-            #return (este return es opcional para salir o no del programa según se quiera con este error)'''
+        # ------------ CÓDIGO DE LA BD ------------------
         
+        # 1. Llamar a función que deshace los detalles introducidos (rollback_to savepoint).
+        
+        try:
+            VentanaMenu.controlador.eliminar_detalles_producto()
+        except pyodbc.Error as error:
+            self.mostrar_ventana_error(TipoError.BD_ERROR, str(error.args[1]))
+            return
+
+        # ------------ CÓDIGO DE LA BD ------------------   
+
+
+        # Crear ventana de confirmación de eliminación de detalles
         v_conf_1 = tk.Toplevel()
         v_conf_1.title("CONFIRMACIÓN DE ELIMINACIÓN")
         v_conf_1.geometry(f"400x150+{self.center_x}+{self.center_y}")
         c1_lbl = tk.Label(v_conf_1, text="Detalles del pedido eliminados con éxito").pack(expand=True)
-        c_btn = ctk.CTkButton(master=v_conf_1, text="Aceptar", command=self.continuar_v4).pack(expand=True)
+        c_btn = ctk.CTkButton(master=v_conf_1, text="Aceptar", command=self.continuar_opciones_pedido).pack(expand=True)
+
+    def cancelar_pedido(self):        
 
         # ------------ CÓDIGO DE LA BD ------------------
-        #   
-        # 1. Crear funcion que deshaga los cambios anteriores. Simplemente pasar la clave (id_pedido + id_producto) y eliminar la tupla de la tabla Detalles Pedido  
-        #
-        # ------------ CÓDIGO DE LA BD ------------------   
-        VentanaMenu.controlador.eliminar_detalles_producto()
 
-    def cancelar_pedido(self):
-        #print("CANCELAR PEDIDO")
-
-        #comentado porque no debería haber errores (simplemente se hace rollback() en la BD)
-        '''# LLAMAR A FUNCIÓN Nº 1 DE CÓDIGO DE LA BD de esta sección -> deshacer_detalles(id_pedido=VentanaMenu.current_id_pedido, id_prod=self.current_id_producto)
-        #if deshacer_detalles(id_pedido=VentanaMenu.current_id_pedido, id_prod=self.current_id_producto):
-        if True:
-            v_conf_1 = tk.Toplevel()
-            v_conf_1.title("CONFIRMACIÓN DE ELIMINACIÓN")
-            v_conf_1.geometry(f"400x150+{self.center_x}+{self.center_y}")
-            c1_lbl = tk.Label(v_conf_1, text="Detalles del pedido eliminados con éxito").pack(expand=True)
-            c_btn = ctk.CTkButton(master=v_conf_1, text="Aceptar", command=lambda : v_conf_1.destroy()).pack(expand=True)
-
-            # LLAMAR A FUNCIÓN Nº 2 DE CÓDIGO DE LA BD de esta sección -> eliminar_pedido(id_pedido=VentanaMenu.current_id_pedido)
-            #if eliminar_pedido(id_pedido=VentanaMenu.current_id_pedido):
-            if True:
-                v_conf = tk.Toplevel()
-                v_conf.title("CONFIRMACIÓN DE ELIMINACIÓN")
-                v_conf.geometry(f"400x150+{self.center_x}+{self.center_y}")
-                c1_lbl = tk.Label(v_conf, text="Pedido eliminado con éxito").pack(expand=True)
-                e_btn = ctk.CTkButton(master=v_conf, text="Aceptar", command=self.continuar_principal).pack(expand=True)
-            else:
-                v_conf = tk.Toplevel()
-                v_conf.title("ERROR 4")
-                v_conf.geometry(f"400x150+{self.center_x}+{self.center_y}")
-                e1_lbl = tk.Label(v_conf, text="ERROR! BD Error").pack(expand=True)
-                e2_lbl =  tk.Label(v_conf, text="Algo no ha ido como debía..").pack(expand=True)
-                e3_lbl =  tk.Label(v_conf, text="La BD devuelve error.").pack(expand=True)
-                e_btn = ctk.CTkButton(master=v_conf, text="Aceptar", command=self.continuar_v4).pack(expand=True)
-                #return (este return es opcional para salir o no del programa según se quiera con este error pero no funciona por el continuar)
-
-        else:
-            v_error_4 = tk.Toplevel()
-            v_error_4.title("ERROR 4")
-            v_error_4.geometry(f"400x150+{self.center_x}+{self.center_y}")
-            e1_lbl = tk.Label(v_error_4, text="ERROR! BD Error").pack(expand=True)
-            e2_lbl =  tk.Label(v_error_4, text="Algo no ha ido como debía..").pack(expand=True)
-            e3_lbl =  tk.Label(v_error_4, text="La BD devuelve error.").pack(expand=True)
-            e_btn = ctk.CTkButton(master=v_error_4, text="Aceptar", command=self.continuar_v4).pack(expand=True)
-            #return (este return es opcional para salir o no del programa según se quiera con este error)'''
+        # 1. Llamar a la funcion que deshace la operación completa del pedido (rollback).
         
+        try:
+            VentanaMenu.controlador.cancelar_pedido()
+        except pyodbc.Error as error:
+            self.mostrar_ventana_error(TipoError.BD_ERROR, str(error.args[1]))
+            return
+
+        # ------------ CÓDIGO DE LA BD ------------------
+
+
         v_conf_1 = tk.Toplevel()
         v_conf_1.title("CONFIRMACIÓN DE ELIMINACIÓN")
         v_conf_1.geometry(f"400x150+{self.center_x}+{self.center_y}")
@@ -414,89 +383,93 @@ class VentanaMenu:
         v_conf.geometry(f"400x150+{self.center_x}+{self.center_y}")
         c1_lbl = tk.Label(v_conf, text="Pedido eliminado con éxito").pack(expand=True)
         e_btn = ctk.CTkButton(master=v_conf, text="Aceptar", command=self.continuar_principal).pack(expand=True)
-
-        self.current_id_producto = -1
-        self.current_cantidad = -1
-
-        # ------------ CÓDIGO DE LA BD ------------------
-        #   
-        # 1. Llamar a la funcion que deshaga (elimine) los detalles (la de antes). Simplemente pasar la clave (id_pedido + id_producto) y eliminar la tupla de la tabla Detalles Pedido  
-        # 2. Crear una función que elimine el pedido de la tabla Pedido. 
-        #
-        # ------------ CÓDIGO DE LA BD ------------------
-        VentanaMenu.controlador.cancelar_pedido()
+        
 
     def finalizar_pedido(self):
-        #print("FINALIZAR PEDIDO")
 
-        #comentado porque no debería haber errores (simplemente se hace commit() en la BD)
-        '''# LLAMAR A FUNCIÓN Nº 1 DE CÓDIGO DE LA BD de esta sección -> finalizar_pedido(id_pedido=VentanaMenu.current_id_pedido, id_producto=self.current_id_producto)
-        #if finalizar_pedido(id_pedido=VentanaMenu.current_id_pedido, id_producto=self.current_id_producto):
-        if True:
-            VentanaMenu.current_id_pedido += 1
+        # ------------ CÓDIGO DE LA BD ------------------
+        
+        # 1. Llamar a la funcion que haga permanentes los cambios
+        
+        try:
+            VentanaMenu.controlador.aplicar_cambios()
+        except pyodbc.Error as error:
+            self.mostrar_ventana_error(TipoError.BD_ERROR, str(error.args[1]))
+            return
 
-            v_conf = tk.Toplevel()
-            v_conf.title("CONFIRMACIÓN DE PEDIDO")
-            v_conf.geometry(f"400x150+{self.center_x}+{self.center_y}")
-            c1_lbl = tk.Label(v_conf, text="Pedido finalizado correctamente").pack(expand=True)
-            e_btn = ctk.CTkButton(master=v_conf, text="Aceptar", command=self.continuar_principal).pack(expand=True)
-        else:
-            v_conf = tk.Toplevel()
-            v_conf.title("ERROR 4")
-            v_conf.geometry(f"400x150+{self.center_x}+{self.center_y}")
-            e1_lbl = tk.Label(v_conf, text="ERROR! BD Error").pack(expand=True)
-            e2_lbl =  tk.Label(v_conf, text="Algo no ha ido como debía..").pack(expand=True)
-            e3_lbl =  tk.Label(v_conf, text="La BD devuelve error.").pack(expand=True)
-            e_btn = ctk.CTkButton(master=v_conf, text="Aceptar", command=self.continuar_v4).pack(expand=True)
-            #return (este return es opcional para salir o no del programa según se quiera con este error pero no funciona por el continuar)'''
+        # ------------ CÓDIGO DE LA BD ------------------
 
-
-        VentanaMenu.current_id_pedido += 1
 
         v_conf = tk.Toplevel()
         v_conf.title("CONFIRMACIÓN DE PEDIDO")
         v_conf.geometry(f"400x150+{self.center_x}+{self.center_y}")
         c1_lbl = tk.Label(v_conf, text="Pedido finalizado correctamente").pack(expand=True)
         e_btn = ctk.CTkButton(master=v_conf, text="Aceptar", command=self.continuar_principal).pack(expand=True)
-
-        # ------------ CÓDIGO DE LA BD ------------------
-        #   
-        # 1. Llamar a la funcion que haga permanentes los cambios
-        #
-        # ------------ CÓDIGO DE LA BD ------------------
-
-        VentanaMenu.controlador.aplicar_cambios()
         
-    def v_mostar_tablas(self):
+    def v_mostrar_tablas(self):
+
+        # ------------ CÓDIGO DE LA BD ------------------
+                
+        # 1. Leer datos de la BD
+        
+        VentanaMenu.current_tabla_stock, VentanaMenu.current_tabla_pedido, VentanaMenu.current_tabla_detalle = VentanaMenu.controlador.leer_tablas()
+
+        # ------------ CÓDIGO DE LA BD ------------------
+
         # Se destruye la ventana del menú principal
         self.root.destroy()
+
         # Se instancia una ventana de la función correspondiente
-        ventana_aux = VentanaMenu(num=3)
+        VentanaMenu(tipo_ventana = TipoVentana.TABLAS_CARGADAS)
+
+    def mostrar_ventana_error(self, tipo_error, string_error = ""):
+        ventana_error = tk.Toplevel()
+        funcion_boton = None
+
+        bd_error = ""
+        match tipo_error:
+            case TipoError.ID_CLIENTE_MAL_INTRODUCIDO:
+                string_error = "ERROR! ID DEL CLIENTE MAL INTRODUCIDO. DEBE SER UN NÚMERO NATURAL."
+                funcion_boton = self.v_nuevo_pedido
+            case TipoError.NUMERO_MAL_INTRODUCIDO:
+                string_error = "ERROR! ID DEL PRODUCTO MAL INTRODUCIDO. DEBE SER UN NÚMERO NATURAL."
+                funcion_boton = self.v_añadir_detalles
+            case TipoError.ID_PRODUCTO_NO_EXISTE:
+                string_error = "ERROR! ID DEL PRODUCTO NO EXISTE EN LA BASE DE DATOS."
+                funcion_boton = self.v_añadir_detalles
+            case TipoError.STOCK_INSUFICIENTE:
+                string_error = "ERROR! STOCK INSUFICIENTE."
+                funcion_boton = self.v_añadir_detalles
+            case TipoError.BD_ERROR:
+                bd_error = string_error
+                string_error = "ERROR! ERROR EN LA BASE DE DATOS. INFO: "
+                funcion_boton = self.salir
+
+        ancho_ventana = len(string_error) * 10
+        alto_ventana = 150
+
+        ventana_error.title("ERROR")
+        tk.Label(ventana_error, text=string_error).pack(expand=True)
         
+        if tipo_error == TipoError.BD_ERROR:
+            tk.Label(ventana_error, text=bd_error).pack(expand=True)
+            alto_ventana = 200
+
+        ventana_error.geometry(f"{ancho_ventana}x{alto_ventana}+{self.center_x}+{self.center_y}")
+
+        ctk.CTkButton(master=ventana_error, text="Aceptar", command=funcion_boton).pack(expand=True)
+    
     def salir(self):
         # ------------ CÓDIGO DE LA BD ------------------
-        #       función para CERRAR CONEXION CON LA BD
-        # ------------ CÓDIGO DE LA BD ------------------
-        
-        VentanaMenu.controlador.cerrar_conexion()
 
-        exit()
+        # Función para CERRAR CONEXION CON LA BD
+
+        try:
+            VentanaMenu.controlador.cerrar_conexion()
+            exit()
+        except pyodbc.Error as error:
+            exit()
+        
+        # ------------ CÓDIGO DE LA BD ------------------
 
 ventana=VentanaMenu()
-
-#accesoDB = AccesoBD(server = 'oracle0.ugr.es', db_name = 'practbd.oracle0.ugr.es',user = 'x2085804', password = 'x2085804')
-
-#print(accesoDB.buscar_datos("mis_sesiones", ["*"]))
-#print(accesoDB.borrar_tabla("DetallePedido"))
-#print(accesoDB.crear_tabla("Stock", ["CProducto INT", "Cantidad INT", "PRIMARY KEY (CProducto)"]))
-#print(accesoDB.borrar_tabla("Stock"))
-#print(accesoDB.crear_tabla("Pedido", ["CPedido INT", "CCliente INT", "Fecha DATE", "PRIMARY KEY (CPedido)"]))
-#print(accesoDB.borrar_tabla("Pedido"))
-#print(accesoDB.crear_tabla("Detalle", ["CPedido INT", "CProducto INT", "Cantidad INT", "FOREIGN KEY (CPedido) REFERENCES Pedido(CPedido)", "FOREIGN KEY (CProducto) REFERENCES Stock(CProducto)", "PRIMARY KEY (CPedido, CProducto)"]))
-#print(accesoDB.execute("SELECT * FROM USER_TABLES"))
-
-#accesoDB.insertar_datos("Pedido", {"Cpedido" : "2", "CCliente" : "2", "Fecha" : "TO_DATE('2021-05-01', 'YYYY-MM-DD')"})
-
-#print(accesoDB.buscar_datos("Pedido", ["*"]))
-
-#accesoDB.cerrar_conexion()

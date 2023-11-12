@@ -1,5 +1,18 @@
 
 import pyodbc
+from enum import Enum
+
+class TipoError(Enum):
+    ID_CLIENTE_MAL_INTRODUCIDO = 0
+    NUMERO_MAL_INTRODUCIDO = 1
+    ID_PRODUCTO_NO_EXISTE = 2
+    STOCK_INSUFICIENTE = 3
+    BD_ERROR = 4
+
+class CustomError(Exception):
+    def __init__(self, tipo_error, string_error = ""):
+        self.tipo_error = tipo_error
+        self.string_error = string_error
 
 class AccesoBD:
     def __init__(self, server, db_name, user, password):
@@ -127,28 +140,33 @@ class Controlador:
         self.accesoDB.cerrar_conexion()
 
     def insertar_pedido(self, ccliente, fecha_pedido):
-        #self.accesoDB.insertar_datos("Pedido", {"Cpedido" : "2", "CCliente" : "2", "Fecha" : "TO_DATE('2021-05-01', 'YYYY-MM-DD')"})
-        #self.accesoDB.insertar_datos("Pedido", {"CPedido": str(cpedido), "CCliente": str(ccliente), "Fecha": "TO_DATE('" + fecha_pedido + "', 'YYYY-MM-DD')"})
         self.accesoDB.insertar_datos("Pedido", {"CCliente": str(ccliente), "Fecha": "TO_DATE('" + fecha_pedido + "', 'YYYY-MM-DD')"})
         self.accesoDB.guardar_savepoint("Pedido")
 
     def consultar_ultimo_id_pedido(self):
-        return self.accesoDB.buscar_datos("Pedido", ["MAX(CPedido)"])[0][0]
+        id_pedido = self.accesoDB.buscar_datos("Pedido", ["MAX(CPedido)"])[0][0]
 
-    def insertar_detalle_producto(self, cproducto, cantidad):
-        #Comprobar que el ID del producto existe TODO
+        if(id_pedido == None):
+            return 0
 
-        
+        return int(id_pedido)
+
+    def insertar_detalle_pedido(self, cproducto, cantidad):
         #Comprobar que hay stock del producto
+
+        datos = self.accesoDB.buscar_datos("Stock", ["Cantidad"], f"CProducto = {cproducto}")
+        if(len(datos) == 0 or len(datos[0]) == 0):
+            raise CustomError(TipoError.BD_ERROR, "Las tablas no están iniciadas (iniciar antes de insertar)")
+        
         cantidad_stock = self.accesoDB.buscar_datos("Stock", ["Cantidad"], f"CProducto = {cproducto}")[0][0]
 
         if(cantidad_stock < cantidad):
-            return False
+            raise CustomError(TipoError.STOCK_INSUFICIENTE)
 
         #Actualizar tabla stock
+
         self.accesoDB.modificar_datos("Stock", ["Cantidad"], [cantidad_stock - cantidad], f"CProducto = {cproducto}")
-        self.accesoDB.insertar_datos("DetallePedido", {"CPedido": str(int(self.consultar_ultimo_id_pedido())), "CProducto": str(cproducto), "Cantidad": str(cantidad)})
-        return True
+        self.accesoDB.insertar_datos("DetallePedido", {"CPedido": str(self.consultar_ultimo_id_pedido()), "CProducto": str(cproducto), "Cantidad": str(cantidad)})
 
     def eliminar_detalles_producto(self):
         self.accesoDB.deshacer_hasta_savepoint("Pedido")
@@ -158,15 +176,3 @@ class Controlador:
     
     def aplicar_cambios(self):
         self.accesoDB.aplicar_cambios()
-            
-#accesoDB = AccesoBD(server = 'oracle0.ugr.es', db_name = 'practbd.oracle0.ugr.es',user = 'x2085804', password = 'x2085804')
-#accesoDB.crear_tabla("cuentas", ["Cuenta NUMBER(10)", "Saldo NUMBER(10)"])
-#accesoDB.insertar_datos("cuentas", {"Cuenta": "2", "Saldo": "80"})
-#accesoDB.borrar_tabla("cuentas")
-#print(accesoDB.buscar_datos("cuentas", ["*"]))
-#print(accesoDB.buscar_datos("mis_sesiones", ["*"]))
-
-# Try except
-# TODO
-# Mostrar hora pedido
-# MOSTRAR TABLAS BIEN
